@@ -19,13 +19,10 @@ import notify
 import reports
 
 app = Flask(__name__)
-# No built-in fallback: a key that ships in the source lets anyone forge an
-# admin session. Without SECRET_KEY a random one is made per process, which is
-# safe but signs everyone out on every restart.
+
 SECRET_KEY_FROM_ENV = bool(os.environ.get("SECRET_KEY"))
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
-# Lax keeps the session cookie off cross-site POSTs; the CSRF token below
-# covers the rest.
+
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 # Only sent over HTTPS. Opt-in, because local development runs on plain HTTP.
