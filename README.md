@@ -15,7 +15,7 @@ Fresh install:
 mysql -u root -p < schema.sql
 ```
 
-Upgrading a database created from an earlier (v3) schema — run once:
+Upgrading a database created from an earlier  schema — run once:
 
 ```bash
 mysql -u root -p assettrack < migrate_v4.sql
@@ -55,13 +55,6 @@ export DB_PASSWORD=yourpassword
 export SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(32))")
 ```
 
-Windows uses `set` instead of `export`. Defaults are `localhost` / `root` /
-no password / database `assettrack`.
-
-Set `SECRET_KEY` for any real use. Without it the app makes a random key at
-startup, so everyone is signed out whenever it restarts. When the app is
-served over HTTPS, also set `SESSION_COOKIE_SECURE=1` so the session cookie is
-never sent over plain HTTP.
 
 ### 4. Create the first administrator
 
