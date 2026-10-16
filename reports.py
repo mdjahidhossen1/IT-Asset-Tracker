@@ -1,12 +1,7 @@
 """
-Reporting.
+Store report details and keep the page and CSV file same
+New reports can be added
 
-Every report is one entry in REPORTS. It declares its title, what it's for,
-the columns to show, and a function that turns request parameters into SQL.
-The page renderer and the CSV exporter both read from the same entry, so a
-report can never show one thing on screen and export another.
-
-Adding a report means adding a dict here — no new route, no new template.
 """
 
 from datetime import date, timedelta

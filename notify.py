@@ -1,3 +1,4 @@
+# Manage notification and email delivery for the asset tracking system
 import os
 import smtplib
 from email.message import EmailMessage
@@ -9,14 +10,11 @@ SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 SMTP_FROM = os.environ.get("SMTP_FROM", SMTP_USER or "assets@example.org")
 
-
+# Save notifaction and prevent duplication
 def queue(cursor, *, kind, audience, subject, body,
           person_id=None, email=None, dedupe_key=None):
     """
-    Write one notification. Returns True if it was newly created.
-
-    dedupe_key makes the daily check idempotent — running it twice on the
-    same day won't send someone two copies of the same reminder.
+    Create notification and avoid sending duplicate one
     """
     if audience == "Admin" and not email:
         email = ADMIN_EMAIL
