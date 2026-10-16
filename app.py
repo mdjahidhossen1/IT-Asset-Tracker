@@ -1,3 +1,5 @@
+"IT Asset Tracking System"
+"For Managing IT Assets, Employees, Asset Life cycle, Warranties, Report Generation"
 import csv
 import hmac
 import io
@@ -18,6 +20,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import notify
 import reports
 
+#creation of Flask application 
 app = Flask(__name__)
 
 SECRET_KEY_FROM_ENV = bool(os.environ.get("SECRET_KEY"))
@@ -25,9 +28,10 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_HTTPONLY"] = True
-# Only sent over HTTPS. Opt-in, because local development runs on plain HTTP.
+# Only sent over HTTPS because local development runs on plain HTTP.
 app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SESSION_COOKIE_SECURE") == "1"
 
+#Connection of Database
 DB_CONFIG = {
     "host": os.environ.get("DB_HOST", "localhost"),
     "user": os.environ.get("DB_USER", "root"),
@@ -38,7 +42,7 @@ DB_CONFIG = {
     "autocommit": False,
 }
 
-# Tag prefixes keep printed labels readable at a glance.
+# Options used for laptops, Desktops, Monitors
 ASSET_TYPES = {
     "Laptop": "LAP",
     "Desktop": "DSK",
@@ -75,9 +79,8 @@ DUE_REMINDER_MARKS = (7, 3, 1, 0)   # days-before-due that trigger an email
 WARRANTY_SOON_DAYS = 30
 
 
-# ------------------------------------------------------------------
 # Database helpers
-# ------------------------------------------------------------------
+
 def get_db():
     if "db" not in g:
         g.db = pymysql.connect(**DB_CONFIG)
@@ -579,6 +582,7 @@ def make_tag(cursor, asset_type, asset_id):
 
 @app.route("/assets/new", methods=["GET", "POST"])
 @login_required
+# Register a new asset and create asset ID 
 def asset_new():
     people = query("""SELECT * FROM people WHERE employment_status = 'Active'
                       ORDER BY name""")
@@ -659,6 +663,7 @@ def asset_new():
 
 @app.route("/assets/<int:asset_id>/edit", methods=["GET", "POST"])
 @login_required
+# Update asset information and manage changes
 def asset_edit(asset_id):
     asset = query("SELECT * FROM assets WHERE id = %s", (asset_id,), one=True)
     if not asset:
@@ -970,9 +975,8 @@ def asset_status(asset_id):
     return redirect(url_for("asset_detail", asset_id=asset_id))
 
 
-# ------------------------------------------------------------------
+
 # Loans: return an item, or extend its deadline
-# ------------------------------------------------------------------
 @app.route("/assignments/<int:assignment_id>/return", methods=["POST"])
 @login_required
 def assignment_return(assignment_id):
@@ -1048,15 +1052,7 @@ def assignment_extend(assignment_id):
 
 def extend_loan(cur, assignment_id, previous_due, new_due, reason):
     """
-    Move a deadline and leave a trail. Used by the extend button, the asset
-    form and approvals, so all three count and record it the same way.
-
-    Doesn't commit: the caller decides what else belongs in the same
-    transaction (an approval must not extend the loan without also closing
-    the request).
-
-    Only a later date counts towards times_extended; pulling a deadline in
-    is recorded, but it isn't an extension.
+        update loan deadline and record changes and due date will be count as extention
     """
     later = previous_due is None or new_due > previous_due
     cur.execute("""UPDATE assignments
@@ -1087,9 +1083,8 @@ def clear_due_reminders(cur, assignment_id):
                      AND dedupe_key LIKE %s""", (f"%:{assignment_id}:%",))
 
 
-# ------------------------------------------------------------------
+
 # People and employee IDs
-# ------------------------------------------------------------------
 def person_form_values():
     f = request.form
     return {
@@ -1246,7 +1241,7 @@ def person_edit(person_id):
                  v["employment_status"], person_id),
             )
             # Leaving the field blank keeps the current ID, or issues one if
-            # there wasn't one.
+            
             give_missing_employee_id(cur, person_id)
         db.commit()
 
@@ -1394,10 +1389,8 @@ def render_person(person):
 
 def issuable_stock(asset_type):
     """
-    Existing items of this type that can go straight to someone: in storage,
-    in good condition, not on loan. Used ones ("Good") come first so stock
-    already in circulation is reused before anything new is unboxed; within
-    that, the most warranty left first.
+    Find availabe assets that are already assigned and good conditioned items are prefered 
+    before new stock
     """
     return query("""SELECT a.id, a.asset_tag, a.make, a.model, a.serial_number,
                            a.item_condition, a.warranty_expiry, a.location
@@ -1438,7 +1431,7 @@ def person_issue(person_id):
             return redirect(back)
 
         # Re-checked under lock: someone may have issued it, or marked it
-        # faulty, since the page was loaded.
+     
         asset = lock_asset(cur, asset_id)
         if (not asset or asset["status"] != "In Storage"
                 or asset["item_condition"] not in ISSUABLE_CONDITIONS
@@ -1485,12 +1478,8 @@ def person_badge(person_id):
 @app.route("/request", methods=["GET", "POST"])
 def request_new():
     """
-    Public application form. Employees have no login in v1, so they identify
-    themselves with their employee ID; an admin approves before anything moves.
-
-    Because anyone can reach this page, it never lists what an employee ID
-    holds. Someone asking about an item they have types the tag printed on
-    its label instead, and that is checked against their open loans.
+    Public request form for eomplyee using their employee ID
+    Admin approval needed before assign the asset
     """
     prefill = request.args.get("id", "").strip().upper()
 
