@@ -1,0 +1,42 @@
+{% extends "shell.html" %}
+{% block title %}{{ a.asset_tag }} — scanned{% endblock %}
+
+{% block content %}
+{% set w = warranty_state(a.warranty_expiry) %}
+<div class="scan">
+  <div class="stub">
+    <p class="eyebrow">Scanned tag</p>
+    <p class="tagline">{{ a.asset_tag }}</p>
+    <h1>{{ [a.make, a.model]|select|join(' ') }}</h1>
+
+    <p><span class="pill st-{{ a.status|lower|replace(' ', '-') }}">{{ a.status }}</span></p>
+
+    <dl style="display:grid;grid-template-columns:9rem 1fr;gap:.6rem 1rem;margin:1.5rem 0 0">
+      <dt class="eyebrow">Held by</dt>
+      <dd style="margin:0">
+        {% if a.holder %}
+          <a href="{{ url_for('person_detail', person_id=a.holder_person_id) }}">{{ a.holder }}</a>
+          {% if a.employee_id %}<span class="mono muted">{{ a.employee_id }}</span>{% endif %}
+          {% if a.department %}<span class="muted">· {{ a.department }}</span>{% endif %}
+        {% else %}Nobody — in store{% endif %}
+      </dd>
+      {% set d = due_state(a.due_date) %}
+      <dt class="eyebrow">Due back</dt>
+      <dd class="{{ d[1] }}" style="margin:0">{{ d[0] if a.holder else '—' }}</dd>
+      <dt class="eyebrow">Location</dt>
+      <dd style="margin:0">{{ a.location or '—' }}</dd>
+      <dt class="eyebrow">Serial</dt>
+      <dd class="mono" style="margin:0">{{ a.serial_number or '—' }}</dd>
+      <dt class="eyebrow">Condition</dt>
+      <dd style="margin:0">{{ a.item_condition }}</dd>
+      <dt class="eyebrow">Warranty</dt>
+      <dd class="{{ w[1] }}" style="margin:0">{{ w[0] }}</dd>
+    </dl>
+
+    <div class="label-actions">
+      <a class="btn" href="{{ url_for('asset_detail', asset_id=a.id) }}">Open full record</a>
+      <a class="btn ghost" href="{{ url_for('asset_edit', asset_id=a.id) }}">Edit</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

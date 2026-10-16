@@ -1,0 +1,23 @@
+{% extends "shell.html" %}
+{% block title %}Not found — Asset Register{% endblock %}
+
+{% block content %}
+<div class="scan">
+  <div class="stub">
+    <p class="eyebrow">No match</p>
+    <h1>{% if tag %}{{ tag }} isn't on file{% else %}That record isn't on file{% endif %}</h1>
+    <p class="muted">
+      {% if tag %}
+        The label or badge may predate this system, or the code was mistyped.
+        Search the register by serial number or name instead.
+      {% else %}
+        It may have been deleted. Try searching the register.
+      {% endif %}
+    </p>
+    <div class="label-actions">
+      <a class="btn" href="{{ url_for('asset_list') }}">Search the register</a>
+      <a class="btn ghost" href="{{ url_for('people_list') }}">Search people</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

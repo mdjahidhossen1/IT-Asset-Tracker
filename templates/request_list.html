@@ -1,0 +1,94 @@
+{% extends "shell.html" %}
+{% block title %}Requests — Asset Register{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">{{ requests|length }} shown</p>
+    <h1>Requests</h1>
+  </div>
+  <div class="spacer"></div>
+  <a class="btn ghost" href="{{ url_for('request_new') }}">Open the application form</a>
+</div>
+
+<form class="filters" method="get">
+  <div class="field">
+    <label for="state">Show</label>
+    <select id="state" name="state" onchange="this.form.submit()">
+      <option value="open"      {% if f_state == 'open' %}selected{% endif %}>Open (pending + approved)</option>
+      <option value="Pending"   {% if f_state == 'Pending' %}selected{% endif %}>Pending only</option>
+      <option value="Approved"  {% if f_state == 'Approved' %}selected{% endif %}>Approved, not yet issued</option>
+      <option value="Declined"  {% if f_state == 'Declined' %}selected{% endif %}>Declined</option>
+      <option value="Fulfilled" {% if f_state == 'Fulfilled' %}selected{% endif %}>Fulfilled</option>
+      <option value="all"       {% if f_state == 'all' %}selected{% endif %}>Everything</option>
+    </select>
+  </div>
+  <noscript><button class="btn ghost" type="submit">Apply</button></noscript>
+</form>
+
+{% if not requests %}
+  <div class="table-wrap"><div class="empty">
+    <h3>Nothing here</h3>
+    <p>Applications arrive from the staff form and wait for a decision.</p>
+    <a class="btn ghost" href="{{ url_for('request_new') }}">See the form</a>
+  </div></div>
+{% endif %}
+
+{% for r in requests %}
+<article class="req-card">
+  <header>
+    <span class="mono ref">{{ r.reference }}</span>
+    <strong>{{ r.request_type }}</strong>
+    {% if r.asset_type %}<span class="muted">· {{ r.asset_type }}</span>{% endif %}
+    <span class="pill rq-{{ r.status|lower }}">{{ r.status }}</span>
+    <span class="when">{{ r.created_at.strftime('%d %b %Y') }}</span>
+  </header>
+
+  <p class="who">
+    <a href="{{ url_for('person_detail', person_id=r.person_id) }}">{{ r.name }}</a>
+    <span class="mono muted">{{ r.employee_id }}</span>
+    {% if r.department %}<span class="muted">· {{ r.department }}</span>{% endif %}
+    {% if r.current_tag %}
+      <span class="muted">· already holds {{ r.current_tag }} ({{ r.current_model }})</span>
+    {% endif %}
+    {% if r.requested_until %}
+      <span class="muted">· asking until {{ r.requested_until.strftime('%d %b %Y') }}</span>
+    {% endif %}
+  </p>
+
+  <blockquote>{{ r.reason }}</blockquote>
+
+  {% if r.decision_note %}
+    <p class="muted" style="font-size:.88rem"><strong>Decision note:</strong> {{ r.decision_note }}</p>
+  {% endif %}
+  {% if r.issued_tag %}
+    <p class="muted" style="font-size:.88rem">Issued {{ r.issued_tag }}.</p>
+  {% endif %}
+
+  {% if r.status == 'Pending' %}
+    <div class="decide">
+      <form method="post" action="{{ url_for('request_decide', request_id=r.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="text" name="decision_note" placeholder="Note for the applicant (optional)">
+        <button class="btn" name="decision" value="approve" type="submit">Approve</button>
+        <button class="btn danger" name="decision" value="decline" type="submit">Decline</button>
+      </form>
+    </div>
+  {% elif r.status == 'Approved' %}
+    <div class="decide">
+      <form method="post" action="{{ url_for('request_issue', request_id=r.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <select name="asset_id" required aria-label="Item to issue">
+          <option value="">Pick an item from storage…</option>
+          {% for a in available %}
+            <option value="{{ a.id }}" {% if a.asset_type == r.asset_type %}data-match="1"{% endif %}>
+              {{ a.asset_tag }} — {{ [a.make, a.model]|select|join(' ') }}
+            </option>
+          {% endfor %}
+        </select>
+        <input type="date" name="due_date" aria-label="Return due date" title="Return due date">
+        <button class="btn" type="submit">Issue</button>
+      </form>
+    </div>
+  {% endif %}
+</article>
+{% endfor %}
+{% endblock %}

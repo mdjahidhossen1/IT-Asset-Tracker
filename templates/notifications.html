@@ -1,0 +1,58 @@
+{% extends "shell.html" %}
+{% block title %}Outbox — Asset Register{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Notification outbox</p>
+    <h1>Alerts raised</h1>
+  </div>
+  <div class="spacer"></div>
+  <form method="post" action="{{ url_for('notifications_send') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button class="btn" type="submit">Attempt delivery</button>
+  </form>
+</div>
+
+{% if not smtp_on %}
+  <div class="flash">
+    No mail server is configured, so alerts stay here as a record instead of being
+    emailed. Set <span class="mono">SMTP_HOST</span> and friends to send for real —
+    the README lists them.
+  </div>
+{% endif %}
+
+<div class="table-wrap">
+  {% if rows %}
+    <table>
+      <thead><tr><th>Raised</th><th>Kind</th><th>To</th><th>Subject</th><th>State</th></tr></thead>
+      <tbody>
+        {% for n in rows %}
+          <tr>
+            <td class="mono" style="font-size:.8rem;white-space:nowrap">{{ n.created_at.strftime('%d %b %H:%M') }}</td>
+            <td><span class="pill">{{ n.kind }}</span></td>
+            <td>
+              {{ n.audience }}
+              {% if n.name %}<div class="muted" style="font-size:.82rem">{{ n.name }}</div>{% endif %}
+              {% if n.email %}<div class="muted mono" style="font-size:.75rem">{{ n.email }}</div>{% endif %}
+            </td>
+            <td>
+              {{ n.subject }}
+              <details><summary class="muted" style="font-size:.8rem;cursor:pointer">Body</summary>
+                <pre class="body">{{ n.body }}</pre></details>
+            </td>
+            <td>
+              <span class="pill nf-{{ n.status|lower }}">{{ n.status }}</span>
+              {% if n.error %}<div class="muted" style="font-size:.75rem">{{ n.error }}</div>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty">
+      <h3>Nothing raised yet</h3>
+      <p>Alerts appear when a deadline nears, someone is marked as leaving, or a request arrives.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,166 @@
+{% extends "shell.html" %}
+{% block title %}Reports — Asset Register{% endblock %}
+
+{% macro compact(n) -%}
+  {%- set n = n|float -%}
+  {%- if n >= 1000000 -%}{{ '%.1f'|format(n / 1000000) }}M
+  {%- elif n >= 10000 -%}{{ '%.1f'|format(n / 1000) }}K
+  {%- else -%}{{ '{:,.0f}'.format(n) }}{%- endif -%}
+{%- endmacro %}
+
+{% macro group_icon(group) -%}
+<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  {%- if group == 'Audit' -%}<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5h6v2.5H9z"/><path d="m9 13 2 2 4-4"/>
+  {%- elif group == 'Allocation' -%}<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>
+  {%- elif group == 'Lifecycle' -%}<path d="M20 12a8 8 0 0 1-13.7 5.6"/><path d="M4 12a8 8 0 0 1 13.7-5.6"/><path d="M18 3v4h-4"/><path d="M6 21v-4h4"/>
+  {%- else -%}<path d="M12 3 5 6v5.5c0 4.3 3 8 7 9.5 4-1.5 7-5.2 7-9.5V6z"/><path d="m9.5 12 2 2 3.5-3.5"/>
+  {%- endif -%}
+</svg>
+{%- endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">{{ catalogue|length }} reports · every one exports to CSV</p>
+    <h1>Reports</h1>
+  </div>
+  <div class="spacer"></div>
+  <a class="btn ghost" href="{{ url_for('report_csv', key='inventory') }}">Export full inventory</a>
+  <a class="btn" href="{{ url_for('report_view', key='inventory') }}">Open inventory</a>
+</div>
+
+{# ---------- Headline figures ---------- #}
+<section class="stat-row" aria-label="Headline figures">
+  <article class="stat">
+    <p class="stat-label">Live assets</p>
+    <p class="stat-value">{{ '{:,}'.format(totals.live) }}</p>
+    <p class="stat-sub">{{ totals.assets - totals.live }} retired · {{ totals.assets }} ever registered</p>
+  </article>
+  <article class="stat">
+    <p class="stat-label">Book value</p>
+    <p class="stat-value" title="{{ '{:,.2f}'.format(totals.value|float) }}">{{ compact(totals.value) }}</p>
+    <p class="stat-sub">Purchase cost of everything not retired</p>
+  </article>
+  <article class="stat">
+    <p class="stat-label">On loan</p>
+    <p class="stat-value">{{ '{:,}'.format(totals.on_loan) }}</p>
+    <p class="stat-sub">
+      {% if totals.live %}{{ '%.0f'|format(totals.on_loan / totals.live * 100) }}% of live assets{% else %}Nothing live yet{% endif %}
+      {% if totals.overdue %} · <span class="flag-alert">{{ totals.overdue }} overdue</span>{% endif %}
+    </p>
+  </article>
+  <article class="stat {% if totals.out_of_warranty %}is-alert{% elif totals.expiring %}is-warn{% endif %}">
+    <p class="stat-label">
+      {% if totals.out_of_warranty %}<span class="stat-flag" aria-hidden="true">!</span>{% endif %}
+      Out of warranty
+    </p>
+    <p class="stat-value">{{ '{:,}'.format(totals.out_of_warranty) }}</p>
+    <p class="stat-sub">{{ totals.expiring }} more expire in the next 90 days ·
+      <a href="{{ url_for('report_view', key='warranty') }}">See list</a></p>
+  </article>
+</section>
+
+{# ---------- Two quick pictures of the fleet ---------- #}
+<div class="viz-grid">
+  <section class="viz-card" aria-labelledby="viz-status">
+    <header class="viz-head">
+      <h2 id="viz-status">Where the fleet stands</h2>
+      <a class="viz-link" href="{{ url_for('report_view', key='by-status') }}">By type and status →</a>
+    </header>
+    <p class="viz-sub">{{ status_total }} asset{{ 's' if status_total != 1 }} by lifecycle status</p>
+
+    {% if status_total %}
+      <div class="stack" role="img"
+           aria-label="{% for s in by_status %}{{ s.status }} {{ s.n }}{{ ', ' if not loop.last }}{% endfor %}">
+        {% for s in by_status if s.n %}
+          <a class="stack-seg st-bg-{{ s.status|lower|replace(' ', '-') }}"
+             style="flex-grow: {{ s.n }}"
+             href="{{ url_for('report_view', key='inventory', status=s.status) }}"
+             data-tip="{{ s.n }} · {{ s.status }} ({{ '%.0f'|format(s.pct) }}%)"
+             aria-label="{{ s.status }}: {{ s.n }}"></a>
+        {% endfor %}
+      </div>
+      <ul class="legend">
+        {% for s in by_status %}
+          <li>
+            <span class="swatch st-bg-{{ s.status|lower|replace(' ', '-') }}" aria-hidden="true"></span>
+            <a href="{{ url_for('report_view', key='inventory', status=s.status) }}">{{ s.status }}</a>
+            <span class="legend-n">{{ s.n }}</span>
+            <span class="legend-pct">{{ '%.0f'|format(s.pct) }}%</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">No assets registered yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="viz-card" aria-labelledby="viz-type">
+    <header class="viz-head">
+      <h2 id="viz-type">Value by type</h2>
+      <a class="viz-link" href="{{ url_for('report_view', key='inventory') }}">Full inventory →</a>
+    </header>
+    <p class="viz-sub">Purchase cost of live assets, largest first</p>
+
+    {% if by_type %}
+      <ul class="barlist">
+        {% for t in by_type %}
+          {% set pct = (t.value|float / type_max * 100) if type_max else 0 %}
+          <li>
+            <a class="barlist-label" href="{{ url_for('report_view', key='inventory', type=t.asset_type) }}">{{ t.asset_type }}</a>
+            <span class="barlist-track" data-tip="{{ '{:,.2f}'.format(t.value|float) }} across {{ t.n }} item{{ 's' if t.n != 1 }}">
+              <span class="barlist-bar" style="width: {{ '%.2f'|format(pct) }}%"></span>
+            </span>
+            <span class="barlist-value">{{ compact(t.value) }}</span>
+            <span class="barlist-n">{{ t.n }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">No live assets to value.</p>
+    {% endif %}
+  </section>
+</div>
+
+{# ---------- Catalogue ---------- #}
+{% for group in groups %}
+  {% set items = catalogue.items()|selectattr('1.group', 'equalto', group)|list %}
+  {% if items %}
+    <section class="report-group">
+      <header class="report-group-head">
+        <span class="group-mark" aria-hidden="true">{{ group_icon(group) }}</span>
+        <div>
+          <h2>{{ group }}</h2>
+          <p>{{ group_blurbs[group] }}</p>
+        </div>
+        <span class="group-count">{{ items|length }} report{{ 's' if items|length != 1 }}</span>
+      </header>
+      <div class="report-grid">
+        {% for key, spec in items %}
+          <article class="report-card">
+            <h3><a href="{{ url_for('report_view', key=key) }}">{{ spec.title }}</a></h3>
+            <p>{{ spec.blurb }}</p>
+            <ul class="report-meta">
+              <li>{{ spec.columns|length }} columns</li>
+              {% if spec.filters %}
+                <li>Filter by {% for f in spec.filters %}{{ labels[f]|lower }}{{ ', ' if not loop.last }}{% endfor %}</li>
+              {% else %}
+                <li>No filters</li>
+              {% endif %}
+            </ul>
+            <div class="report-links">
+              <a class="btn sm" href="{{ url_for('report_view', key=key) }}">Open report</a>
+              <a class="btn ghost sm" href="{{ url_for('report_csv', key=key) }}" aria-label="Download {{ spec.title }} as CSV">CSV</a>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+{% endfor %}
+
+<p class="hint">
+  {{ '{:,}'.format(totals.events) }} audited event{{ 's' if totals.events != 1 }} on record across
+  {{ totals.assets }} asset{{ 's' if totals.assets != 1 }}, including any since deleted.
+</p>
+{% endblock %}

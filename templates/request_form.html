@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Apply for a device — Asset Register{% endblock %}
+
+{% block body %}
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="wordmark" href="{{ url_for('request_new') }}">
+      <span class="wordmark-mark" aria-hidden="true"></span>
+      <span>Asset&nbsp;Register</span>
+    </a>
+    <div class="nav-account">
+      <a class="btn ghost-light sm" href="{{ url_for('login') }}">Staff sign in</a>
+    </div>
+  </div>
+</header>
+
+<main class="scan" style="max-width:40rem">
+  <div class="page-head" style="display:block">
+    <p class="eyebrow">No sign-in needed</p>
+    <h1>Apply for a device</h1>
+    <p class="muted" style="max-width:48ch">
+      Use this to ask for an extra device, a replacement for something faulty,
+      or more time with something you already have. An administrator decides,
+      and you'll hear back by email.
+    </p>
+  </div>
+
+  {% if throttled %}
+    <div class="flash" style="border-left-color:var(--alert)">
+      Too many applications from this connection. Try again in an hour, or
+      speak to the IT office.
+    </div>
+  {% elif errors %}
+    <div class="flash" style="border-left-color:var(--alert)">
+      Nothing was submitted. Check the highlighted field{{ 's' if errors|length > 1 }}.
+    </div>
+  {% endif %}
+
+  <form method="post" class="stub"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="field {% if errors.employee_id %}bad{% endif %}">
+      <label for="employee_id">Your employee ID</label>
+      <input id="employee_id" name="employee_id" type="text" class="serial"
+             value="{{ v.employee_id or prefill or '' }}" placeholder="EMP-0042" required>
+      {% if errors.employee_id %}<p class="err">{{ errors.employee_id }}</p>
+      {% else %}<p class="hint">It's printed on your staff badge.</p>{% endif %}
+    </div>
+
+    <div class="field {% if errors.request_type %}bad{% endif %}">
+      <label for="request_type">What are you asking for</label>
+      <select id="request_type" name="request_type" required>
+        <option value="">Choose…</option>
+        {% for t in request_types %}
+          <option value="{{ t }}" {% if v.request_type == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+      {% if errors.request_type %}<p class="err">{{ errors.request_type }}</p>{% endif %}
+    </div>
+
+    <div class="field {% if errors.asset_type %}bad{% endif %}" id="wrap-asset-type">
+      <label for="asset_type">Kind of device</label>
+      <select id="asset_type" name="asset_type">
+        <option value="">Choose…</option>
+        {% for t in types %}
+          <option value="{{ t }}" {% if v.asset_type == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+      {% if errors.asset_type %}<p class="err">{{ errors.asset_type }}</p>{% endif %}
+    </div>
+
+    <div class="field {% if errors.current_tag %}bad{% endif %}" id="wrap-current">
+      <label for="current_tag">Tag of the item you already have</label>
+      <input id="current_tag" name="current_tag" type="text" class="serial"
+             value="{{ v.current_tag or '' }}" placeholder="LAP-00014">
+      {% if errors.current_tag %}<p class="err">{{ errors.current_tag }}</p>
+      {% else %}<p class="hint">It's on the label stuck to the item. Leave blank for a replacement
+        if the label is gone.</p>{% endif %}
+    </div>
+
+    <div class="field {% if errors.requested_until %}bad{% endif %}" id="wrap-until">
+      <label for="requested_until">Keep it until</label>
+      <input id="requested_until" name="requested_until" type="date" value="{{ v.requested_until or '' }}">
+      {% if errors.requested_until %}<p class="err">{{ errors.requested_until }}</p>{% endif %}
+    </div>
+
+    <div class="field {% if errors.reason %}bad{% endif %}">
+      <label for="reason">Why you need it</label>
+      <textarea id="reason" name="reason" required
+                placeholder="I run the after-school club on a second laptop that stays in the hall.">{{ v.reason or '' }}</textarea>
+      {% if errors.reason %}<p class="err">{{ errors.reason }}</p>
+      {% else %}<p class="hint">A sentence is enough. This is what the approver reads.</p>{% endif %}
+    </div>
+
+    <button class="btn block" type="submit">Send application</button>
+  </form>
+</main>
+
+<script>
+  // Show only the fields that the chosen request type actually needs.
+  const type = document.getElementById('request_type');
+  const show = (id, on) => document.getElementById(id).style.display = on ? '' : 'none';
+  function sync() {
+    const v = type.value;
+    show('wrap-asset-type', v === 'Additional device' || v === 'Replacement');
+    show('wrap-until', v === 'Keep longer');
+    show('wrap-current', v === 'Keep longer' || v === 'Replacement');
+  }
+  type.addEventListener('change', sync);
+  sync();
+</script>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Sign in — Asset Tracker{% endblock %}
+
+{% block body %}
+<div class="auth">
+
+  <section class="auth-brand">
+    <div class="tag-rain" aria-hidden="true">LAP-00001
+MON-00002
+LAP-00003
+PHN-00004
+LIC-00005
+NET-00006
+LAP-00007
+DSK-00008
+MON-00009
+PRN-00010
+TAB-00011
+LAP-00012
+LIC-00013
+MON-00014
+PHN-00015
+LAP-00016
+NET-00017
+DSK-00018</div>
+
+    <p class="eyebrow">IT asset Tracker</p>
+
+    <div>
+      <h1>Every laptop, licence and monitor, on one list.</h1>
+      <p>Sign in to register equipment, print its tag, chase what's overdue,
+         and approve requests.</p>
+    </div>
+
+    <p class="eyebrow" style="color:#5d7482">v1 &middot; single administrator</p>
+  </section>
+
+  <section class="auth-form">
+    <form class="stub" method="post" action="{{ url_for('login', next=request.args.get('next')) if request.args.get('next') else url_for('login') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <p class="eyebrow">Administrator access</p>
+      <h2>Sign in</h2>
+
+      {% if error %}
+        <p class="err" role="alert" style="margin:-.6rem 0 1rem">{{ error }}</p>
+      {% endif %}
+
+      <div class="field {% if error %}bad{% endif %}">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" autocomplete="username"
+               value="{{ username or '' }}" required autofocus>
+      </div>
+
+      <div class="field {% if error %}bad{% endif %}">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password"
+               autocomplete="current-password" required>
+      </div>
+
+      <button class="btn block" type="submit">Sign in</button>
+
+      <p class="hint" style="margin-top:1.1rem">
+        No account yet? Create the first administrator from the terminal:
+        <span class="mono">python app.py create-admin</span>
+      </p>
+      <!-- <p class="hint" style="border-top:1px solid var(--rule);padding-top:.9rem">
+        Staff don't need an account —
+        <a href="{{ url_for('request_new') }}">apply for a device</a> with your employee ID.
+      </p> -->
+    </form>
+  </section>
+
+</div>
+{% endblock %}

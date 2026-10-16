@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block body %}
+{% set ep = request.endpoint %}
+{% set links = [
+  ('dashboard',     'Dashboard', ('dashboard',)),
+  ('asset_list',    'Assets',   ('asset_list','asset_detail','asset_new','asset_edit','tag_lookup')),
+  ('people_list',   'People',   ('people_list','person_detail','person_new','person_edit','employee_lookup')),
+  ('request_list',  'Requests', ('request_list',)),
+  ('report_hub',    'Reports',  ('report_hub','report_view')),
+  ('notifications', 'Outbox',   ('notifications',)),
+] %}
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="wordmark" href="{{ url_for('dashboard') }}">
+      <span class="wordmark-mark" aria-hidden="true"></span>
+      <span>Asset&nbsp;Tracker</span>
+    </a>
+
+    {# CSS-only menu toggle: the checkbox drives the drawer on small screens #}
+    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Menu">
+    <label for="nav-toggle" class="nav-burger" aria-hidden="true" title="Menu">
+      <span></span><span></span><span></span>
+    </label>
+
+    <div class="nav-panel">
+      <nav class="nav-main" aria-label="Main">
+        {% for endpoint, label, active in links %}
+          <a href="{{ url_for(endpoint) }}" {% if ep in active %}aria-current="page"{% endif %}>
+            {{ label }}
+            {% if endpoint == 'request_list' and pending_requests %}
+              <span class="nav-badge" title="{{ pending_requests }} awaiting approval">{{ pending_requests }}</span>
+            {% endif %}
+          </a>
+        {% endfor %}
+      </nav>
+
+      <div class="nav-account">
+        {% if current_user %}
+          <span class="user-chip" title="Signed in as {{ current_user }}">
+            <span class="avatar" aria-hidden="true">{{ current_user[:1]|upper }}</span>
+            <span class="user-name">{{ current_user }}</span>
+          </span>
+        {% endif %}
+        <form method="post" action="{{ url_for('logout') }}" class="signout">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <button class="btn ghost-light sm" type="submit">Sign out</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</header>
+<main>
+  {% for category, message in get_flashed_messages(with_categories=true) %}
+    <div class="flash">{{ message }}</div>
+  {% endfor %}
+  {% block content %}{% endblock %}
+</main>
+{% endblock %}

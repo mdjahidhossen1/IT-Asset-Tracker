@@ -1,0 +1,296 @@
+{% extends "shell.html" %}
+{% block title %}{{ spec.title }} — Reports{% endblock %}
+
+{% macro number(value, kind) -%}
+  {{ '{:,.2f}'.format(value) if kind == 'money' else '{:,.0f}'.format(value) }}
+{%- endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <nav class="crumbs" aria-label="Breadcrumb">
+      <a href="{{ url_for('report_hub') }}">Reports</a>
+      <span aria-hidden="true">/</span>
+      <span>{{ spec.group }}</span>
+    </nav>
+    <h1>{{ spec.title }}</h1>
+  </div>
+  <div class="spacer"></div>
+  <a class="btn ghost noprint" href="{{ url_for('report_csv', key=key, **params) }}">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+    Download CSV
+  </a>
+  <button class="btn ghost noprint" type="button" onclick="window.print()">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="7" rx="1.5"/><path d="M7 14h10v6H7z"/></svg>
+    Print
+  </button>
+</div>
+
+<p class="report-blurb">{{ spec.blurb }}</p>
+
+{# Print masthead: what this is, when it was run, and on what slice #}
+<div class="print-only print-mast">
+  <p><strong>{{ spec.title }}</strong> · {{ rows|length }} row{{ 's' if rows|length != 1 }}</p>
+  <p>Generated {{ generated.strftime('%d %b %Y %H:%M') }} by {{ current_user }}
+    {% if chips %} · {% for c in chips %}{{ c.label }}: {{ c.value }}{{ '; ' if not loop.last }}{% endfor %}{% endif %}</p>
+</div>
+
+{# ---------- Summary figures ---------- #}
+<section class="stat-row compact" aria-label="Summary">
+  <article class="stat">
+    <p class="stat-label">Rows</p>
+    <p class="stat-value">{{ '{:,}'.format(rows|length) }}</p>
+    <p class="stat-sub">{% if truncated %}<span class="flag-warn">Newest {{ spec.limit }} only</span>{% elif chips %}Filtered{% else %}Everything on record{% endif %}</p>
+  </article>
+  {% for col_key, label, kind in spec.columns if col_key in totals %}
+    {% if loop.index <= 3 %}
+      {% set t = totals[col_key] %}
+      <article class="stat">
+        <p class="stat-label">{{ label }}</p>
+        <p class="stat-value">{{ number(t[0], kind) }}</p>
+        <p class="stat-sub">{{ 'Average per row' if t[1] == 'avg' else 'Total across rows' }}</p>
+      </article>
+    {% endif %}
+  {% endfor %}
+</section>
+
+{# ---------- Filters ---------- #}
+{% if spec.filters %}
+<form class="filters report-filters noprint" method="get">
+  {% if 'window' in spec.filters %}
+    <div class="field">
+      <label for="window">Expiry window</label>
+      <select id="window" name="window">
+        {% for value, label in options.window %}
+          <option value="{{ value }}" {% if params.window == value or (not params.window and value == '90') %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  {% endif %}
+  {% if 'status' in spec.filters %}
+    <div class="field">
+      <label for="status">Status</label>
+      <select id="status" name="status">
+        <option value="">Any</option>
+        {% for s in options.status %}<option value="{{ s }}" {% if params.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+  {% endif %}
+  {% if 'type' in spec.filters %}
+    <div class="field">
+      <label for="type">Type</label>
+      <select id="type" name="type">
+        <option value="">Any</option>
+        {% for t in options.type %}<option value="{{ t }}" {% if params.type == t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+      </select>
+    </div>
+  {% endif %}
+  {% if 'department' in spec.filters %}
+    <div class="field">
+      <label for="department">Department</label>
+      <select id="department" name="department">
+        <option value="">Any</option>
+        {% for d in options.department %}<option value="{{ d }}" {% if params.department == d %}selected{% endif %}>{{ d }}</option>{% endfor %}
+      </select>
+    </div>
+  {% endif %}
+  {% if 'event' in spec.filters %}
+    <div class="field">
+      <label for="event">Event</label>
+      <select id="event" name="event">
+        <option value="">Any</option>
+        {% for e in options.event %}<option value="{{ e }}" {% if params.event == e %}selected{% endif %}>{{ e }}</option>{% endfor %}
+      </select>
+    </div>
+  {% endif %}
+  {% if 'overdue' in spec.filters %}
+    <div class="field">
+      <label for="overdue">Overdue only</label>
+      <select id="overdue" name="overdue">
+        <option value="">No, show all</option>
+        <option value="yes" {% if params.overdue == 'yes' %}selected{% endif %}>Yes</option>
+      </select>
+    </div>
+  {% endif %}
+  {% if 'tag' in spec.filters %}
+    <div class="field">
+      <label for="tag">Asset tag</label>
+      <input id="tag" name="tag" type="text" class="tagbox" value="{{ params.tag }}" placeholder="LAP-00014">
+    </div>
+  {% endif %}
+  {% if 'employee' in spec.filters %}
+    <div class="field">
+      <label for="employee">Employee</label>
+      <input id="employee" name="employee" type="text" class="tagbox" value="{{ params.employee }}" placeholder="EMP-0042 or name">
+    </div>
+  {% endif %}
+  <div class="filter-actions">
+    <button class="btn" type="submit">Apply</button>
+    {% if chips %}<a class="btn ghost" href="{{ url_for('report_view', key=key) }}">Reset</a>{% endif %}
+  </div>
+</form>
+
+{% if chips %}
+  <ul class="filter-chips noprint" aria-label="Active filters">
+    {% for c in chips %}
+      <li>
+        <span class="filter-chip">
+          <span class="muted">{{ c.label }}</span> {{ c.value }}
+          <a href="{{ c.remove_url }}" aria-label="Remove {{ c.label }} filter" title="Remove">×</a>
+        </span>
+      </li>
+    {% endfor %}
+    {% if chips|length > 1 %}<li><a class="chip-clear" href="{{ url_for('report_view', key=key) }}">Clear all</a></li>{% endif %}
+  </ul>
+{% endif %}
+{% endif %}
+
+{# ---------- Results ---------- #}
+<section class="report-card-wrap">
+  {% if rows %}
+    <div class="report-toolbar noprint">
+      <label class="quickfind">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>
+        <span class="sr-only">Find in these rows</span>
+        <input type="search" id="quickfind" placeholder="Find in these rows…" autocomplete="off">
+      </label>
+      <p class="report-count" id="report-count" aria-live="polite">{{ '{:,}'.format(rows|length) }} row{{ 's' if rows|length != 1 }}</p>
+      <p class="report-hint">Click a column heading to sort</p>
+    </div>
+
+    {% if truncated %}
+      <p class="report-note noprint">Showing the newest {{ '{:,}'.format(spec.limit) }} entries. Narrow the filters, or download the CSV, to see further back.</p>
+    {% endif %}
+
+    <div class="table-wrap report-scroll">
+      <table class="report" id="report-table">
+        <thead>
+          <tr>{% for col_key, label, kind in spec.columns %}
+            <th class="{{ 'num' if kind in ('money','int') }}" aria-sort="none" scope="col">
+              <button type="button" class="sort-btn" data-col="{{ loop.index0 }}" data-numeric="{{ 1 if kind in ('money','int') else 0 }}">
+                {{ label }}<span class="sort-ind" aria-hidden="true"></span>
+              </button>
+            </th>
+          {% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              {% for col_key, label, kind in spec.columns %}
+                {% set v = row[col_key] %}
+                {% set c = cell(v, kind) %}
+                {% set sv = sort_value(v, kind) %}
+                {% if v is none or v == '' %}
+                  <td class="muted {{ 'num' if kind in ('money','int') }}" data-sort="">—</td>
+                {% elif kind == 'status' %}
+                  <td data-sort="{{ sv }}"><span class="pill st-{{ v|lower|replace(' ', '-') }}">{{ c[0] }}</span></td>
+                {% elif kind == 'employment' %}
+                  <td data-sort="{{ sv }}"><span class="pill em-{{ v|lower }}">{{ c[0] }}</span></td>
+                {% elif kind == 'tenure' %}
+                  <td data-sort="{{ sv }}"><span class="pill {{ 'st-in-use' if v == 'Current' else 'st-in-storage' }}">{{ c[0] }}</span></td>
+                {% elif kind == 'event' %}
+                  <td data-sort="{{ sv }}"><span class="event-tag">{{ c[0] }}</span></td>
+                {% elif kind == 'tag' %}
+                  <td class="mono" data-sort="{{ sv }}"><a class="cell-link" href="{{ url_for('tag_lookup', tag=v) }}">{{ c[0] }}</a></td>
+                {% elif kind == 'person' %}
+                  <td class="mono" data-sort="{{ sv }}"><a class="cell-link" href="{{ url_for('employee_lookup', employee_id=v) }}">{{ c[0] }}</a></td>
+                {% elif kind in ('warranty', 'due') %}
+                  <td class="{{ c[1] }}" data-sort="{{ sv }}"><span class="flag-dot" aria-hidden="true"></span>{{ c[0] }}</td>
+                {% elif col_key in bar_max and bar_max[col_key] %}
+                  <td class="num" data-sort="{{ sv }}">
+                    <span class="cell-bar"><span style="width: {{ '%.1f'|format(v|float / bar_max[col_key] * 100) }}%"></span></span>
+                    <span class="mono">{{ c[0] }}</span>
+                  </td>
+                {% else %}
+                  <td class="{{ c[1] }} {{ 'num' if kind in ('money','int') }}" data-sort="{{ sv }}">{{ c[0] }}</td>
+                {% endif %}
+              {% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+        {% if totals %}
+          <tfoot>
+            <tr>
+              {% for col_key, label, kind in spec.columns %}
+                {% if loop.first %}
+                  <th scope="row">Total</th>
+                {% elif col_key in totals %}
+                  {% set t = totals[col_key] %}
+                  <th class="num mono">{% if t[1] == 'avg' %}<span class="tfoot-kind">avg</span> {% endif %}{{ number(t[0], kind) }}</th>
+                {% else %}
+                  <th></th>
+                {% endif %}
+              {% endfor %}
+            </tr>
+          </tfoot>
+        {% endif %}
+      </table>
+      <div class="empty" id="quickfind-empty" hidden>
+        <h3>Nothing in these rows matches</h3>
+        <p>The quick find only searches what's already loaded. Clear it, or change the filters above.</p>
+      </div>
+    </div>
+  {% else %}
+    <div class="table-wrap">
+      <div class="empty">
+        <h3>No rows match</h3>
+        <p>{% if chips %}Widen the filters, or reset them.{% else %}There's nothing on record for this report yet.{% endif %}</p>
+        {% if chips %}<a class="btn ghost" href="{{ url_for('report_view', key=key) }}">Reset filters</a>{% endif %}
+      </div>
+    </div>
+  {% endif %}
+</section>
+
+{% if rows %}
+<script>
+/* Sort by column and find within loaded rows. The server already filtered;
+   this only reorders or hides what's on the page, so it degrades to a
+   plain table without JavaScript. */
+(function () {
+  var table = document.getElementById("report-table");
+  var tbody = table.tBodies[0];
+  var rows = Array.prototype.slice.call(tbody.rows);
+  var count = document.getElementById("report-count");
+  var empty = document.getElementById("quickfind-empty");
+  var total = rows.length;
+
+  table.querySelectorAll(".sort-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var th = btn.parentNode;
+      var col = +btn.dataset.col;
+      var numeric = btn.dataset.numeric === "1";
+      var dir = th.getAttribute("aria-sort") === "ascending" ? "descending" : "ascending";
+      table.querySelectorAll("th[aria-sort]").forEach(function (h) { h.setAttribute("aria-sort", "none"); });
+      th.setAttribute("aria-sort", dir);
+      var sign = dir === "ascending" ? 1 : -1;
+      rows.sort(function (a, b) {
+        var x = a.cells[col].dataset.sort, y = b.cells[col].dataset.sort;
+        if (x === y) return 0;
+        if (x === "") return 1;           // blanks always sink
+        if (y === "") return -1;
+        if (numeric) return (parseFloat(x) - parseFloat(y)) * sign;
+        return x.localeCompare(y, undefined, { numeric: true }) * sign;
+      });
+      rows.forEach(function (r) { tbody.appendChild(r); });
+    });
+  });
+
+  var find = document.getElementById("quickfind");
+  find.addEventListener("input", function () {
+    var q = find.value.trim().toLowerCase();
+    var shown = 0;
+    rows.forEach(function (r) {
+      var hit = !q || r.textContent.toLowerCase().indexOf(q) !== -1;
+      r.hidden = !hit;
+      if (hit) shown++;
+    });
+    empty.hidden = shown !== 0;
+    if (table.tFoot) table.tFoot.hidden = !!q;   // totals describe every row, not the found ones
+    table.hidden = shown === 0;
+    count.textContent = q ? shown.toLocaleString() + " of " + total.toLocaleString() + " rows"
+                          : total.toLocaleString() + (total === 1 ? " row" : " rows");
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "shell.html" %}
+{% block title %}Dashboard — Asset Register{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">{{ today.strftime('%A %d %B %Y') }}</p>
+    <h1>Dashboard</h1>
+  </div>
+  <div class="spacer"></div>
+  <a class="btn ghost" href="{{ url_for('report_hub') }}">Reports</a>
+  <a class="btn ghost" href="{{ url_for('notifications') }}">Outbox</a>
+  <a class="btn" href="{{ url_for('asset_new') }}">Register an asset</a>
+</div>
+
+<div class="tallies">
+  <div class="tally"><span class="n">{{ counts.assets }}</span><span class="eyebrow">assets</span></div>
+  <div class="tally"><span class="n">{{ counts.in_use }}</span><span class="eyebrow">in use</span></div>
+  <div class="tally"><span class="n">{{ counts.staff }}</span><span class="eyebrow">active staff</span></div>
+  <div class="tally {% if counts.pending %}hot{% endif %}"><span class="n">{{ counts.pending }}</span><span class="eyebrow">awaiting approval</span></div>
+</div>
+
+{% set nothing = not (alerts.overdue or alerts.due_soon or leavers or alerts.requests or alerts.warranty) %}
+{% if nothing %}
+  <div class="table-wrap"><div class="empty">
+    <h3>Nothing outstanding</h3>
+    <p>No overdue loans, no leavers holding equipment, no requests waiting on you.</p>
+  </div></div>
+{% endif %}
+
+{% if leavers %}
+<section class="alert-block danger">
+  <h2><span class="count">{{ leavers|length }}</span> leaver{{ 's' if leavers|length != 1 }} still holding equipment</h2>
+  {% for group in leavers %}
+    {% set p = group.person %}
+    <article class="alert-row">
+      <div class="who">
+        <a href="{{ url_for('person_detail', person_id=p.person_id) }}"><strong>{{ p.name }}</strong></a>
+        <span class="mono muted">{{ p.employee_id }}</span>
+        <div class="muted" style="font-size:.85rem">
+          {{ p.employment_status }}{% if p.exit_date %} · last day {{ p.exit_date.strftime('%d %b %Y') }}{% endif %}
+        </div>
+      </div>
+      <ul class="chip-list">
+        {% for item in group['items'] %}
+          <li><a class="chip" href="{{ url_for('asset_detail', asset_id=item.asset_id) }}">{{ item.asset_tag }}</a></li>
+        {% endfor %}
+      </ul>
+    </article>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if alerts.overdue %}
+<section class="alert-block danger">
+  <h2><span class="count">{{ alerts.overdue|length }}</span> overdue loan{{ 's' if alerts.overdue|length != 1 }}</h2>
+  {% for loan in alerts.overdue %}
+    <article class="alert-row">
+      <div class="who">
+        <a class="mono" href="{{ url_for('asset_detail', asset_id=loan.asset_id) }}">{{ loan.asset_tag }}</a>
+        <span>{{ [loan.make, loan.model]|select|join(' ') }}</span>
+        <div class="muted" style="font-size:.85rem">
+          <a href="{{ url_for('person_detail', person_id=loan.person_id) }}">{{ loan.name }}</a>
+          · {{ due_state(loan.due_date)[0]|lower }}
+          {% if loan.times_extended %} · extended {{ loan.times_extended }}×{% endif %}
+        </div>
+      </div>
+      {% include "_loan_actions.html" %}
+    </article>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if alerts.due_soon %}
+<section class="alert-block warn">
+  <h2><span class="count">{{ alerts.due_soon|length }}</span> due back this week</h2>
+  {% for loan in alerts.due_soon %}
+    <article class="alert-row">
+      <div class="who">
+        <a class="mono" href="{{ url_for('asset_detail', asset_id=loan.asset_id) }}">{{ loan.asset_tag }}</a>
+        <span>{{ [loan.make, loan.model]|select|join(' ') }}</span>
+        <div class="muted" style="font-size:.85rem">
+          <a href="{{ url_for('person_detail', person_id=loan.person_id) }}">{{ loan.name }}</a>
+          · {{ due_state(loan.due_date)[0]|lower }}
+        </div>
+      </div>
+      {% include "_loan_actions.html" %}
+    </article>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if alerts.requests %}
+<section class="alert-block">
+  <h2><span class="count">{{ alerts.requests|length }}</span> request{{ 's' if alerts.requests|length != 1 }} open</h2>
+  {% for r in alerts.requests %}
+    <article class="alert-row">
+      <div class="who">
+        <span class="mono">{{ r.reference }}</span>
+        <strong>{{ r.request_type }}</strong>
+        {% if r.asset_type %}<span class="muted">· {{ r.asset_type }}</span>{% endif %}
+        <div class="muted" style="font-size:.85rem">
+          <a href="{{ url_for('person_detail', person_id=r.person_id) }}">{{ r.name }}</a>
+          <span class="mono">{{ r.employee_id }}</span>
+          {% if r.current_tag %} · already holds {{ r.current_tag }}{% endif %}
+        </div>
+      </div>
+      <div><span class="pill rq-{{ r.status|lower }}">{{ r.status }}</span>
+        <a class="btn ghost" href="{{ url_for('request_list') }}">Review</a></div>
+    </article>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if alerts.warranty %}
+<section class="alert-block">
+  <h2><span class="count">{{ alerts.warranty|length }}</span> warrant{{ 'ies' if alerts.warranty|length != 1 else 'y' }} expiring or expired
+    <a href="{{ url_for('report_view', key='warranty') }}" style="margin-left:auto;font-size:.78rem">Full report →</a></h2>
+  {% for a in alerts.warranty %}
+    {% set w = warranty_state(a.warranty_expiry) %}
+    <article class="alert-row">
+      <div class="who">
+        <a class="mono" href="{{ url_for('asset_detail', asset_id=a.id) }}">{{ a.asset_tag }}</a>
+        <span>{{ [a.make, a.model]|select|join(' ') }}</span>
+      </div>
+      <div class="{{ w[1] }}">{{ w[0] }} <span class="muted">({{ a.warranty_expiry.strftime('%d %b %Y') }})</span></div>
+    </article>
+  {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,18 @@
+{# Return / extend controls for one open loan. Expects `loan`. #}
+<div class="loan-actions">
+  <form method="post" action="{{ url_for('assignment_return', assignment_id=loan.assignment_id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <select name="item_condition" aria-label="Condition on return">
+      <option value="">Condition…</option>
+      <option value="Good">Good</option>
+      <option value="Fair">Fair</option>
+      <option value="Poor">Poor</option>
+      <option value="Faulty">Faulty</option>
+    </select>
+    <button class="btn ghost" type="submit">Returned</button>
+  </form>
+  <form method="post" action="{{ url_for('assignment_extend', assignment_id=loan.assignment_id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="date" name="new_due" aria-label="New return date" required>
+    <input type="hidden" name="reason" value="Extended from the dashboard">
+    <button class="btn ghost" type="submit">Extend</button>
+  </form>
+</div>

@@ -1,0 +1,92 @@
+{% extends "shell.html" %}
+{% block title %}{{ 'Edit ' + person.name if mode == 'edit' else 'Add a person' }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">{{ person.employee_id if mode == 'edit' else 'New staff record' }}</p>
+    <h1>{{ 'Edit person' if mode == 'edit' else 'Add a person' }}</h1>
+  </div>
+</div>
+
+{% if errors %}
+  <div class="flash" style="border-left-color:var(--alert)">
+    Nothing was saved. Check the {{ errors|length }} highlighted field{{ 's' if errors|length > 1 }}.
+  </div>
+{% endif %}
+
+<form method="post" style="max-width:44rem"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <fieldset>
+    <legend>Who they are</legend>
+    <div class="row">
+      <div class="field {% if errors.employee_id %}bad{% endif %}">
+        <label for="employee_id">Employee ID</label>
+        <input id="employee_id" name="employee_id" type="text" class="serial"
+               value="{{ v.employee_id or '' }}" placeholder="EMP-0042">
+        {% if errors.employee_id %}<p class="err">{{ errors.employee_id }}</p>
+        {% else %}<p class="hint">Leave blank and one is issued automatically.</p>{% endif %}
+      </div>
+      <div class="field {% if errors.name %}bad{% endif %}">
+        <label for="name">Full name</label>
+        <input id="name" name="name" type="text" value="{{ v.name or '' }}" required>
+        {% if errors.name %}<p class="err">{{ errors.name }}</p>{% endif %}
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="department">Department</label>
+        <input id="department" name="department" type="text" value="{{ v.department or '' }}" placeholder="Teaching">
+      </div>
+      <div class="field">
+        <label for="job_title">Job title</label>
+        <input id="job_title" name="job_title" type="text" value="{{ v.job_title or '' }}">
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>How to reach them</legend>
+    <div class="row">
+      <div class="field {% if errors.email %}bad{% endif %}">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="text" value="{{ v.email or '' }}">
+        {% if errors.email %}<p class="err">{{ errors.email }}</p>
+        {% else %}<p class="hint">Return reminders go here.</p>{% endif %}
+      </div>
+      <div class="field">
+        <label for="phone">Phone</label>
+        <input id="phone" name="phone" type="text" value="{{ v.phone or '' }}">
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Employment</legend>
+    <div class="row">
+      <div class="field {% if errors.employment_status %}bad{% endif %}">
+        <label for="employment_status">Status</label>
+        <select id="employment_status" name="employment_status">
+          {% for s in states %}
+            <option value="{{ s }}" {% if v.employment_status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+        <p class="hint">Setting this to Leaving or Left raises a return alert.</p>
+      </div>
+      <div class="field">
+        <label for="start_date">Started</label>
+        <input id="start_date" name="start_date" type="date" value="{{ v.start_date or '' }}">
+      </div>
+    </div>
+    <div class="field {% if errors.exit_date %}bad{% endif %}" style="max-width:16rem">
+      <label for="exit_date">Last day</label>
+      <input id="exit_date" name="exit_date" type="date" value="{{ v.exit_date or '' }}">
+      {% if errors.exit_date %}<p class="err">{{ errors.exit_date }}</p>{% endif %}
+    </div>
+  </fieldset>
+
+  <div class="form-actions">
+    <button class="btn" type="submit">{{ 'Save changes' if mode == 'edit' else 'Add person' }}</button>
+    <a class="btn ghost" href="{{ url_for('person_detail', person_id=person.id) if mode == 'edit' else url_for('people_list') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

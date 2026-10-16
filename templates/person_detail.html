@@ -1,0 +1,213 @@
+{% extends "shell.html" %}
+{% block title %}{{ p.employee_id }} — {{ p.name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow mono">{{ p.employee_id }}</p>
+    <h1>{{ p.name }}</h1>
+  </div>
+  <div class="spacer"></div>
+  <span class="pill em-{{ p.employment_status|lower }}">{{ p.employment_status }}</span>
+  <a class="btn ghost" href="{{ url_for('person_edit', person_id=p.id) }}">Edit</a>
+</div>
+
+{% if p.employment_status != 'Active' and holdings %}
+  <div class="flash" style="border-left-color:var(--alert)">
+    <strong>{{ holdings|length }} item{{ 's' if holdings|length != 1 }} still to recover.</strong>
+    {{ p.name }} is marked {{ p.employment_status|lower }}{% if p.exit_date %},
+    last day {{ p.exit_date.strftime('%d %b %Y') }}{% endif %}.
+    Alerts have been queued for {{ p.name.split()[0] }} and the admin —
+    see the <a href="{{ url_for('notifications') }}">outbox</a>.
+  </div>
+{% endif %}
+
+<div class="detail-grid">
+  <div>
+    <section class="spec">
+      <h2>Details</h2>
+      <dl>
+        <dt>Employee ID</dt> <dd class="mono">{{ p.employee_id or '—' }}</dd>
+        <dt>Department</dt>  <dd>{{ p.department or '—' }}</dd>
+        <dt>Job title</dt>   <dd>{{ p.job_title or '—' }}</dd>
+        <dt>Email</dt>       <dd>{{ p.email or '—' }}</dd>
+        <dt>Phone</dt>       <dd>{{ p.phone or '—' }}</dd>
+        <dt>Started</dt>     <dd>{{ p.start_date.strftime('%d %b %Y') if p.start_date else '—' }}</dd>
+        <dt>Last day</dt>    <dd>{{ p.exit_date.strftime('%d %b %Y') if p.exit_date else '—' }}</dd>
+      </dl>
+    </section>
+
+    {% if p.employment_status == 'Active' %}
+    <section class="spec noprint" id="issue">
+      <h2>Issue equipment</h2>
+      <form method="get" action="{{ url_for('person_detail', person_id=p.id) }}#issue"
+            style="display:flex;gap:.5rem;align-items:center;margin-bottom:.8rem">
+        <label for="issue-type" class="muted" style="font-size:.85rem">Kind of device</label>
+        <select id="issue-type" name="type" onchange="this.form.submit()">
+          {% for t in types %}<option value="{{ t }}" {% if t == issue_type %}selected{% endif %}>{{ t }}</option>{% endfor %}
+        </select>
+        <noscript><button class="btn ghost" type="submit">Show</button></noscript>
+      </form>
+
+      {% if stock %}
+        <p class="hint" style="margin-top:0">
+          {{ stock|length }} in storage in good condition. Used ones are listed first, so existing stock
+          goes out before anything new.
+        </p>
+        <table class="inner">
+          <thead><tr><th>Tag</th><th>Item</th><th>Condition</th><th>Warranty</th><th></th></tr></thead>
+          <tbody>
+            {% for a in stock %}
+              {% set w = warranty_state(a.warranty_expiry) %}
+              <tr>
+                <td><a class="tag" href="{{ url_for('asset_detail', asset_id=a.id) }}">{{ a.asset_tag }}</a>
+                  {% if loop.first %}<div class="muted" style="font-size:.75rem">suggested</div>{% endif %}</td>
+                <td>{{ [a.make, a.model]|select|join(' ') }}
+                  {% if a.location %}<div class="muted" style="font-size:.8rem">{{ a.location }}</div>{% endif %}</td>
+                <td>{{ a.item_condition }}</td>
+                <td class="{{ w[1] }}" style="font-size:.85rem">{{ w[0] }}</td>
+                <td>
+                  <form method="post" action="{{ url_for('person_issue', person_id=p.id) }}" class="loan-actions"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                    <input type="hidden" name="asset_id" value="{{ a.id }}">
+                    <input type="date" name="due_date" aria-label="Return date (optional)" title="Return date — leave blank for open-ended">
+                    <button class="btn {{ '' if loop.first else 'ghost' }}" type="submit">Assign</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <p class="hint">None of these suit?
+          <a href="{{ url_for('asset_new', type=issue_type, person_id=p.id) }}">Register a new {{ issue_type|lower }} for {{ p.name.split()[0] }}</a>.</p>
+      {% else %}
+        <p class="muted" style="margin-top:0">
+          No {{ issue_type|lower }} in storage in good condition.
+        </p>
+        <a class="btn" href="{{ url_for('asset_new', type=issue_type, person_id=p.id) }}">
+          Register a new {{ issue_type|lower }} for {{ p.name.split()[0] }}</a>
+        <p class="hint">Opens the asset form with {{ p.name.split()[0] }} already set as the holder.</p>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="spec">
+      <h2>Currently holding ({{ holdings|length }})</h2>
+      {% if holdings %}
+        <table class="inner">
+          <thead><tr><th>Tag</th><th>Item</th><th>Due</th><th></th></tr></thead>
+          <tbody>
+            {% for h in holdings %}
+              {% set d = due_state(h.due_date) %}
+              <tr>
+                <td><a class="tag" href="{{ url_for('asset_detail', asset_id=h.asset_id) }}">{{ h.asset_tag }}</a></td>
+                <td>{{ [h.make, h.model]|select|join(' ') }}
+                  <div class="muted" style="font-size:.8rem">since {{ h.assigned_date.strftime('%d %b %Y') }}{% if h.times_extended %} · extended {{ h.times_extended }}×{% endif %}</div>
+                </td>
+                <td class="{{ d[1] }}" style="font-size:.85rem">{{ d[0] }}</td>
+                <td>
+                  <div class="loan-actions">
+                    <form method="post" action="{{ url_for('assignment_return', assignment_id=h.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                      <select name="item_condition" aria-label="Condition on return">
+                        <option value="">Condition…</option>
+                        {% for c in conditions %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+                      </select>
+                      <button class="btn ghost" type="submit">Returned</button>
+                    </form>
+                    <form method="post" action="{{ url_for('assignment_extend', assignment_id=h.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                      <input type="date" name="new_due" aria-label="New return date" required>
+                      <input type="hidden" name="reason" value="Extended from the staff record">
+                      <button class="btn ghost" type="submit">Extend</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="muted" style="margin:0">Nothing on loan.</p>
+      {% endif %}
+    </section>
+
+    <section class="spec">
+      <h2>Requests ({{ requests|length }})</h2>
+      {% if requests %}
+        <ul class="history">
+          {% for r in requests %}
+            <li>
+              <span class="when">{{ r.created_at.strftime('%d %b %Y') }}</span>
+              <span>
+                <span class="mono">{{ r.reference }}</span> {{ r.request_type }}
+                {% if r.asset_type %}<span class="muted">· {{ r.asset_type }}</span>{% endif %}
+                <span class="pill rq-{{ r.status|lower }}">{{ r.status }}</span>
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted" style="margin:0">No applications on record.</p>
+      {% endif %}
+    </section>
+
+    <section class="spec">
+      <h2>Past holdings ({{ history|length }})</h2>
+      {% if history %}
+        <ul class="history">
+          {% for h in history %}
+            <li>
+              <span class="when">{{ h.assigned_date.strftime('%d %b %Y') }} → {{ h.returned_date.strftime('%d %b %Y') }}</span>
+              <span><a class="mono" href="{{ url_for('asset_detail', asset_id=h.asset_id) }}">{{ h.asset_tag }}</a>
+                {{ [h.make, h.model]|select|join(' ') }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted" style="margin:0">Nothing returned yet.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside>
+    <div class="stub label-card">
+      <p class="org">Staff badge</p>
+      <p class="tagline">{{ p.employee_id }}</p>
+      <img src="{{ url_for('person_badge', person_id=p.id) }}" alt="QR code for {{ p.employee_id }}">
+      <p class="org" style="letter-spacing:.06em">{{ p.department or 'Staff' }}</p>
+      <div class="label-actions">
+        <button class="btn" type="button" onclick="window.print()">Print badge</button>
+        <a class="btn ghost" href="{{ url_for('person_badge', person_id=p.id) }}" download>PNG</a>
+      </div>
+    </div>
+
+    {% if p.employment_status == 'Active' %}
+      <form class="stub noprint" method="post" style="margin-top:1.25rem"
+            action="{{ url_for('person_offboard', person_id=p.id) }}"
+            onsubmit='return confirm({{ ("Mark " ~ p.name ~ " as leaving and alert them about outstanding items?")|tojson }});'><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <p class="eyebrow">Offboarding</p>
+        <h3 style="font-size:1rem;margin:.3rem 0 .8rem">Mark as leaving</h3>
+        <p class="hint" style="margin-top:0">
+          Raises a return alert for everything they still hold, addressed to both
+          {{ p.name.split()[0] }} and the admin.
+        </p>
+        <div class="field">
+          <label for="exit_date">Last day</label>
+          <input id="exit_date" name="exit_date" type="date" required>
+        </div>
+        <div class="field">
+          <label for="employment_status">Set status to</label>
+          <select id="employment_status" name="employment_status">
+            <option value="Leaving">Leaving</option>
+            <option value="Left">Left</option>
+          </select>
+        </div>
+        <button class="btn danger block" type="submit">Start offboarding</button>
+      </form>
+    {% endif %}
+
+    <p class="hint noprint" style="margin-top:1rem">
+      Scanning the badge opens
+      <span class="mono" style="word-break:break-all">{{ badge_url }}</span>.
+    </p>
+  </aside>
+</div>
+{% endblock %}

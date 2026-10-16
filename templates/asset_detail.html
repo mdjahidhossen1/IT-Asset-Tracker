@@ -1,0 +1,229 @@
+{% extends "shell.html" %}
+{% block title %}{{ a.asset_tag }} — Asset Register{% endblock %}
+
+{% block content %}
+{% set w = warranty_state(a.warranty_expiry) %}
+
+<div class="page-head">
+  <div>
+    <p class="eyebrow mono">{{ a.asset_tag }}</p>
+    <h1>{{ [a.make, a.model]|select|join(' ') }}</h1>
+  </div>
+  <div class="spacer"></div>
+  <span class="pill st-{{ a.status|lower|replace(' ', '-') }}">{{ a.status }}</span>
+  <a class="btn ghost" href="{{ url_for('asset_edit', asset_id=a.id) }}">Edit</a>
+</div>
+
+<div class="detail-grid">
+  <div>
+    <section class="spec">
+      <h2>Record</h2>
+      <dl>
+        <dt>Asset tag</dt>      <dd class="mono">{{ a.asset_tag }}</dd>
+        <dt>Type</dt>           <dd>{{ a.asset_type }}</dd>
+        <dt>Serial number</dt>  <dd class="mono">{{ a.serial_number or '—' }}</dd>
+        <dt>Location</dt>       <dd>{{ a.location or '—' }}</dd>
+        <dt>Condition</dt>      <dd>{{ a.item_condition }}</dd>
+        <dt>Purchased</dt>      <dd>{{ a.purchase_date.strftime('%d %b %Y') if a.purchase_date else '—' }}</dd>
+        <dt>Cost</dt>           <dd>{{ '%.2f'|format(a.purchase_cost) if a.purchase_cost is not none else '—' }}</dd>
+        <dt>Supplier</dt>       <dd>{{ a.supplier or '—' }}{% if a.invoice_ref %} <span class="mono muted">{{ a.invoice_ref }}</span>{% endif %}</dd>
+        <dt>Warranty</dt>       <dd class="{{ w[1] }}">{{ w[0] }}</dd>
+        <dt>Cover</dt>          <dd>{{ a.warranty_provider or '—' }}{% if a.warranty_ref %} <span class="mono muted">{{ a.warranty_ref }}</span>{% endif %}</dd>
+        <dt>Notes</dt>          <dd>{{ a.notes or '—' }}</dd>
+        {% if a.status == 'Retired' %}
+          <dt>Disposed</dt>
+          <dd>{{ a.disposal_date.strftime('%d %b %Y') if a.disposal_date else '—' }}
+              {% if a.disposal_method %}· {{ a.disposal_method }}{% endif %}
+              {% if a.disposal_value is not none %}· recovered {{ '%.2f'|format(a.disposal_value) }}{% endif %}</dd>
+          {% if a.disposal_note %}<dt>Reason</dt><dd>{{ a.disposal_note }}</dd>{% endif %}
+        {% endif %}
+      </dl>
+    </section>
+
+    <section class="spec noprint">
+      <h2>Lifecycle</h2>
+      <p class="lifecycle-now">
+        Currently <span class="pill st-{{ a.status|lower|replace(' ', '-') }}">{{ a.status }}</span>
+      </p>
+      {% if open_loan %}
+        <p class="muted" style="margin:.75rem 0 0">
+          It's on loan to {{ open_loan.name }}. Mark it returned below before changing
+          its status — that keeps the allocation record and the status in step.
+        </p>
+      {% elif next_states %}
+        <form method="post" action="{{ url_for('asset_status', asset_id=a.id) }}" id="status-form"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <div class="row">
+            <div class="field">
+              <label for="status">Move to</label>
+              <select id="status" name="status" required>
+                <option value="">Choose…</option>
+                {% for st in next_states %}<option value="{{ st }}">{{ st }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label for="reason">Reason</label>
+              <input id="reason" name="reason" type="text" required
+                     placeholder="Screen cracked, sent to the repair shop">
+            </div>
+          </div>
+
+          <div id="disposal-fields" style="display:none">
+            <div class="row">
+              <div class="field">
+                <label for="disposal_method">How it was disposed of</label>
+                <select id="disposal_method" name="disposal_method">
+                  <option value="">Choose…</option>
+                  {% for m in methods %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label for="disposal_date">Disposal date</label>
+                <input id="disposal_date" name="disposal_date" type="date"
+                       value="{{ today.isoformat() }}">
+              </div>
+            </div>
+            <div class="field" style="max-width:14rem">
+              <label for="disposal_value">Value recovered</label>
+              <input id="disposal_value" name="disposal_value" type="number" step="0.01" min="0"
+                     placeholder="0.00">
+              <p class="hint">Leave blank if nothing was recovered.</p>
+            </div>
+          </div>
+
+          <button class="btn" type="submit">Record the move</button>
+        </form>
+        <script>
+          (function () {
+            const sel = document.getElementById('status');
+            const box = document.getElementById('disposal-fields');
+            sel.addEventListener('change', function () {
+              box.style.display = sel.value === 'Retired' ? '' : 'none';
+            });
+          })();
+        </script>
+      {% else %}
+        <p class="muted" style="margin:.75rem 0 0">No moves available from here.</p>
+      {% endif %}
+    </section>
+
+    <section class="spec">
+      <h2>Current loan</h2>
+      {% if open_loan %}
+        {% set d = due_state(open_loan.due_date) %}
+        <dl>
+          <dt>Held by</dt>
+          <dd><a href="{{ url_for('person_detail', person_id=open_loan.person_id) }}">{{ open_loan.name }}</a>
+              <span class="mono muted">{{ open_loan.employee_id }}</span></dd>
+          <dt>Since</dt><dd>{{ open_loan.assigned_date.strftime('%d %b %Y') }}</dd>
+          <dt>Due back</dt>
+          <dd class="{{ d[1] }}">{{ d[0] }}{% if open_loan.times_extended %}
+              <span class="muted">· extended {{ open_loan.times_extended }}×</span>{% endif %}</dd>
+        </dl>
+        <div class="loan-actions noprint" style="margin-top:1rem">
+          <form method="post" action="{{ url_for('assignment_return', assignment_id=open_loan.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <select name="item_condition" aria-label="Condition on return">
+              <option value="">Condition…</option>
+              <option value="Good">Good</option><option value="Fair">Fair</option>
+              <option value="Poor">Poor</option><option value="Faulty">Faulty</option>
+            </select>
+            <button class="btn ghost" type="submit">Mark returned</button>
+          </form>
+          <form method="post" action="{{ url_for('assignment_extend', assignment_id=open_loan.id) }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <input type="date" name="new_due" aria-label="New return date" required>
+            <input type="hidden" name="reason" value="Extended from the asset record">
+            <button class="btn ghost" type="submit">Extend</button>
+          </form>
+        </div>
+      {% else %}
+        <p class="muted" style="margin:0">Not on loan. It's in {{ a.status|lower }}.</p>
+      {% endif %}
+    </section>
+
+    <section class="spec">
+      <h2>Assignment history</h2>
+      {% if history %}
+        <ul class="history">
+          {% for h in history %}
+            <li>
+              <span class="when">
+                {{ h.assigned_date.strftime('%d %b %Y') }} →
+                {{ h.returned_date.strftime('%d %b %Y') if h.returned_date else 'now' }}
+              </span>
+              <span>
+                <a href="{{ url_for('person_detail', person_id=h.person_id) }}">{{ h.name }}</a>
+                <span class="mono muted">{{ h.employee_id }}</span>
+                {% if h.department %}<span class="muted">· {{ h.department }}</span>{% endif %}
+                {% if not h.returned_date %}<span class="now"> (current holder)</span>{% endif %}
+                {% if h.due_date %}<div class="muted" style="font-size:.8rem">due {{ h.due_date.strftime('%d %b %Y') }}</div>{% endif %}
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted" style="margin:0">Never assigned. This item has stayed in store since it was registered.</p>
+      {% endif %}
+    </section>
+
+    <section class="spec">
+      <h2>Audit trail</h2>
+      {% if events %}
+        <ul class="timeline">
+          {% for e in events %}
+            <li>
+              <span class="when">{{ e.created_at.strftime('%d %b %Y %H:%M') }}</span>
+              <span class="what">
+                <strong>{{ e.event_type }}</strong>
+                {% if e.from_value and e.to_value %}
+                  <span class="muted">{{ e.from_value }} → {{ e.to_value }}</span>
+                {% elif e.to_value %}
+                  <span class="muted">{{ e.to_value }}</span>
+                {% endif %}
+                {% if e.person_name %}
+                  <span class="muted">·
+                    <a href="{{ url_for('person_detail', person_id=e.person_id) }}">{{ e.person_name }}</a>
+                  </span>
+                {% endif %}
+                {% if e.note %}<div class="muted" style="font-size:.85rem">{{ e.note }}</div>{% endif %}
+                {% if e.by_whom %}<div class="muted" style="font-size:.78rem">by {{ e.by_whom }}</div>{% endif %}
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted" style="margin:0">Nothing logged yet.</p>
+      {% endif %}
+    </section>
+
+    {# Only something never lent out can be deleted; otherwise it's retired, which keeps its history. #}
+    {% if not history %}
+    <form method="post" action="{{ url_for('asset_delete', asset_id=a.id) }}" class="noprint delete-form"
+          onsubmit='return confirm({{ ("Delete " ~ a.asset_tag ~ "? It has never been lent out, so only use this for an item registered by mistake.")|tojson }});'><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="text" name="reason" placeholder="Why it's being deleted (kept in the audit trail)">
+      <button class="btn danger" type="submit">Delete from register</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <!-- Identification: this is what gets printed and stuck on the item -->
+  <aside>
+    <div class="stub label-card">
+      <p class="org">Asset register</p>
+      <p class="tagline">{{ a.asset_tag }}</p>
+      <img src="{{ url_for('asset_qr', asset_id=a.id) }}"
+           alt="QR code for {{ a.asset_tag }}">
+      <p class="org" style="letter-spacing:.06em">{{ a.asset_type }}</p>
+
+      <div class="label-actions">
+        <button class="btn" type="button" onclick="window.print()">Print label</button>
+        <a class="btn ghost" href="{{ url_for('asset_qr', asset_id=a.id) }}" download>PNG</a>
+      </div>
+    </div>
+
+    <p class="hint noprint" style="margin-top:1rem">
+      Scanning the code opens
+      <span class="mono" style="word-break:break-all">{{ tag_url }}</span>,
+      which shows this record after sign-in.
+    </p>
+  </aside>
+</div>
+{% endblock %}

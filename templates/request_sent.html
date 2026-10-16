@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ reference }} — application sent{% endblock %}
+
+{% block body %}
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="wordmark" href="{{ url_for('request_new') }}">
+      <span class="wordmark-mark" aria-hidden="true"></span>
+      <span>Asset&nbsp;Register</span>
+    </a>
+    <div class="nav-account">
+      <a class="btn ghost-light sm" href="{{ url_for('login') }}">Staff sign in</a>
+    </div>
+  </div>
+</header>
+
+<main class="scan">
+  <div class="stub">
+    <p class="eyebrow">Application received</p>
+    <p class="tagline">{{ reference }}</p>
+    <h1>Thanks, {{ first_name }}</h1>
+    <p class="muted">
+      An administrator will review it. You'll get an email at
+      <span class="mono">{{ masked_email or 'the address on your staff record' }}</span>
+      once it's decided. Quote {{ reference }} if you need to chase it.
+    </p>
+    <div class="label-actions">
+      <a class="btn" href="{{ url_for('request_new') }}">Send another</a>
+    </div>
+  </div>
+</main>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "shell.html" %}
+{% block title %}People — Asset Register{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">{{ people|length }} record{{ 's' if people|length != 1 }}</p>
+    <h1>People</h1>
+  </div>
+  <div class="spacer"></div>
+  <a class="btn" href="{{ url_for('person_new') }}">Add a person</a>
+</div>
+
+<form class="filters" method="get">
+  <div class="field">
+    <label for="q">Find by employee ID, name or department</label>
+    <input id="q" name="q" type="text" class="tagbox" value="{{ f_q }}" placeholder="EMP-0042">
+  </div>
+  <div class="field">
+    <label for="state">Employment</label>
+    <select id="state" name="state">
+      <option value="">Any</option>
+      {% for s in states %}
+        <option value="{{ s }}" {% if f_state == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="btn ghost" type="submit">Apply</button>
+  {% if f_q or f_state %}<a class="btn ghost" href="{{ url_for('people_list') }}">Clear</a>{% endif %}
+</form>
+
+<div class="table-wrap">
+  {% if people %}
+    <table>
+      <thead>
+        <tr>
+          <th>Employee ID</th><th>Name</th><th>Department</th>
+          <th>Employment</th><th>Holding</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in people %}
+          <tr>
+            <td><a class="tag" href="{{ url_for('person_detail', person_id=p.id) }}">{{ p.employee_id or '—' }}</a></td>
+            <td>
+              {{ p.name }}
+              {% if p.job_title %}<div class="muted" style="font-size:.82rem">{{ p.job_title }}</div>{% endif %}
+            </td>
+            <td>{{ p.department or '—' }}</td>
+            <td>
+              <span class="pill em-{{ p.employment_status|lower }}">{{ p.employment_status }}</span>
+              {% if p.exit_date and p.employment_status != 'Active' %}
+                <div class="muted" style="font-size:.8rem">last day {{ p.exit_date.strftime('%d %b %Y') }}</div>
+              {% endif %}
+            </td>
+            <td>
+              {{ p.holding }} item{{ 's' if p.holding != 1 }}
+              {% if p.overdue %}<span class="flag-alert" style="font-size:.82rem"> · {{ p.overdue }} overdue</span>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty">
+      <h3>{% if f_q or f_state %}No one matches those filters{% else %}No people on file{% endif %}</h3>
+      <p>{% if f_q or f_state %}Try a different ID or clear the filters.{% else %}Assets can't be assigned until there's someone to assign them to.{% endif %}</p>
+      <a class="btn" href="{{ url_for('person_new') }}">Add a person</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

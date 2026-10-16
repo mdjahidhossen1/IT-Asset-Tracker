@@ -1,0 +1,94 @@
+{% extends "shell.html" %}
+{% block title %}Register — Asset Register{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">{{ assets|length }} record{{ 's' if assets|length != 1 }}</p>
+    <h1>Asset register</h1>
+  </div>
+  <div class="spacer"></div>
+  <a class="btn" href="{{ url_for('asset_new') }}">Register an asset</a>
+</div>
+
+<form class="filters" method="get">
+  <div class="field">
+    <label for="q">Find by tag, serial, model or holder</label>
+    <input id="q" name="q" type="text" class="tagbox" value="{{ f_q }}" placeholder="LAP-00014 or EMP-0042">
+  </div>
+  <div class="field">
+    <label for="status">Status</label>
+    <select id="status" name="status">
+      <option value="">Any</option>
+      {% for s in statuses %}
+        <option value="{{ s }}" {% if f_status == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="type">Type</label>
+    <select id="type" name="type">
+      <option value="">Any</option>
+      {% for t in types %}
+        <option value="{{ t }}" {% if f_type == t %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="btn ghost" type="submit">Apply</button>
+  {% if f_q or f_status or f_type %}
+    <a class="btn ghost" href="{{ url_for('asset_list') }}">Clear</a>
+  {% endif %}
+</form>
+
+<div class="table-wrap">
+  {% if assets %}
+    <table>
+      <thead>
+        <tr>
+          <th>Tag</th>
+          <th>Item</th>
+          <th>Serial</th>
+          <th>Status</th>
+          <th>Held by</th>
+          <th>Due back</th>
+          <th>Warranty</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in assets %}
+          {% set w = warranty_state(a.warranty_expiry) %}
+          <tr>
+            <td><a class="tag" href="{{ url_for('asset_detail', asset_id=a.id) }}">{{ a.asset_tag }}</a></td>
+            <td>
+              {{ [a.make, a.model]|select|join(' ') }}
+              <div class="muted" style="font-size:.82rem">{{ a.asset_type }}{% if a.location %} · {{ a.location }}{% endif %}</div>
+            </td>
+            <td class="mono" style="font-size:.85rem">{{ a.serial_number or '—' }}</td>
+            <td><span class="pill st-{{ a.status|lower|replace(' ', '-') }}">{{ a.status }}</span></td>
+            <td>
+              {% if a.holder %}{{ a.holder }}
+                <div class="muted mono" style="font-size:.78rem">{{ a.employee_id }}</div>
+              {% else %}—{% endif %}
+            </td>
+            {% set d = due_state(a.due_date) %}
+            <td class="{{ d[1] }}" style="font-size:.85rem">{{ d[0] if a.holder else '—' }}</td>
+            <td class="{{ w[1] }}" style="font-size:.85rem">{{ w[0] }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty">
+      {% if f_q or f_status or f_type %}
+        <h3>No assets match those filters</h3>
+        <p>Try clearing the search, or check the tag prefix.</p>
+        <a class="btn ghost" href="{{ url_for('asset_list') }}">Clear filters</a>
+      {% else %}
+        <h3>The register is empty</h3>
+        <p>Start with whatever is nearest — a laptop on the desk will do.</p>
+        <a class="btn" href="{{ url_for('asset_new') }}">Register an asset</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
